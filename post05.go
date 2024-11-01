@@ -9,13 +9,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-/*
-Поскольку пакет взаимодействует с PostgreSQL, мы импортируем пакет github.com/lib/pq и используем _
-перед путем к пакету. Как обсуждалось ранее, это происходит потому, что импортированный пакет
-регистрирует себя в качестве обработчика базы данных для пакета sql, но не применяется непосредственно
-в коде. Он используется только через пакет sql.
-*/
-
+// Connection details
 var (
 	Hostname = ""
 	Port     = 2345
@@ -23,8 +17,6 @@ var (
 	Password = ""
 	Database = ""
 )
-
-// Переменные с заглавной буквы, чтобы могли быть доступны из вне, т.е. они Открытые
 
 // Userdata is for holding full user data
 // Userdata table + Username
@@ -37,9 +29,11 @@ type Userdata struct {
 }
 
 func openConnection() (*sql.DB, error) {
-	// строка подключения
-	conn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", Hostname, Port, Username, Password, Database)
-	// открыть базу данных
+	// connection string
+	conn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		Hostname, Port, Username, Password, Database)
+
+	// open database
 	db, err := sql.Open("postgres", conn)
 	if err != nil {
 		return nil, err
@@ -47,9 +41,9 @@ func openConnection() (*sql.DB, error) {
 	return db, nil
 }
 
-// Функция возвращает ID пользователя username
-// -1, если пользователь не существует
-func exist(username string) int {
+// The function returns the User ID of the username
+// -1 if the user does not exist
+func exists(username string) int {
 	username = strings.ToLower(username)
 
 	db, err := openConnection()
@@ -58,12 +52,14 @@ func exist(username string) int {
 		return -1
 	}
 	defer db.Close()
+
 	userID := -1
 	statement := fmt.Sprintf(`SELECT "id" FROM "users" where username = '%s'`, username)
 	rows, err := db.Query(statement)
+
 	for rows.Next() {
 		var id int
-		err := rows.Scan(&id)
+		err = rows.Scan(&id)
 		if err != nil {
 			fmt.Println("Scan", err)
 			return -1
@@ -74,12 +70,12 @@ func exist(username string) int {
 	return userID
 }
 
-// AddUser добавляет нового пользователя в базу данных
-// Возвращаем новый ID пользователя
-// -1, если произошла ошибка
-
+// AddUser adds a new user to the database
+// Returns new User ID
+// -1 if there was an error
 func AddUser(d Userdata) int {
 	d.Username = strings.ToLower(d.Username)
+
 	db, err := openConnection()
 	if err != nil {
 		fmt.Println(err)
@@ -87,32 +83,36 @@ func AddUser(d Userdata) int {
 	}
 	defer db.Close()
 
-	userID := exist(d.Username)
+	userID := exists(d.Username)
 	if userID != -1 {
-		fmt.Println("User already exist", Username)
+		fmt.Println("User already exists:", Username)
 		return -1
 	}
+
 	insertStatement := `insert into "users" ("username") values ($1)`
 	_, err = db.Exec(insertStatement, d.Username)
 	if err != nil {
 		fmt.Println(err)
 		return -1
 	}
-	userID = exist(d.Username)
+
+	userID = exists(d.Username)
 	if userID == -1 {
 		return userID
 	}
 
-	insertStatement = `insert into "userdata" ("userid", "name", "surname", "description") values ($1, $2, $3, $4)`
+	insertStatement = `insert into "userdata" ("userid", "name", "surname", "description")
+	values ($1, $2, $3, $4)`
 	_, err = db.Exec(insertStatement, userID, d.Name, d.Surname, d.Description)
 	if err != nil {
-		fmt.Println("db.Exec", err)
+		fmt.Println("db.Exec()", err)
 		return -1
 	}
+
 	return userID
 }
 
-// deleteUser удаляет существующего пользователя
+// DeleteUser deletes an existing user
 func DeleteUser(id int) error {
 	db, err := openConnection()
 	if err != nil {
@@ -120,8 +120,8 @@ func DeleteUser(id int) error {
 	}
 	defer db.Close()
 
-	// Существует ли идентификатор ?
-	statement := fmt.Sprintf(`SELECT "username" FROM "users" where id = %id`, id)
+	// Does the ID exist?
+	statement := fmt.Sprintf(`SELECT "username" FROM "users" where id = %d`, id)
 	rows, err := db.Query(statement)
 
 	var username string
@@ -133,26 +133,28 @@ func DeleteUser(id int) error {
 	}
 	defer rows.Close()
 
-	if exist(username) != id {
+	if exists(username) != id {
 		return fmt.Errorf("User with ID %d does not exist", id)
 	}
 
-	// Удаление из таблицы userdata
+	// Delete from Userdata
 	deleteStatement := `delete from "userdata" where userid=$1`
 	_, err = db.Exec(deleteStatement, id)
 	if err != nil {
 		return err
 	}
 
-	// удалить из users
-	deleteStatement = `delete from "user" where userid=$1`
+	// Delete from Users
+	deleteStatement = `delete from "users" where id=$1`
 	_, err = db.Exec(deleteStatement, id)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
+// ListUsers lists all users in the database
 func ListUsers() ([]Userdata, error) {
 	Data := []Userdata{}
 	db, err := openConnection()
@@ -161,7 +163,9 @@ func ListUsers() ([]Userdata, error) {
 	}
 	defer db.Close()
 
-	rows, err := db.Query(`SELECT "id","username","name","surname","description" FROM "users", "userdata" WHERE users.id=userdata.userid`)
+	rows, err := db.Query(`SELECT "id","username","name","surname","description"
+		FROM "users","userdata"
+		WHERE users.id = userdata.userid`)
 	if err != nil {
 		return Data, err
 	}
@@ -183,7 +187,7 @@ func ListUsers() ([]Userdata, error) {
 	return Data, nil
 }
 
-// UpdateUser предназначена для обновления данных существующего пользователя
+// UpdateUser is for updating an existing user
 func UpdateUser(d Userdata) error {
 	db, err := openConnection()
 	if err != nil {
@@ -191,15 +195,16 @@ func UpdateUser(d Userdata) error {
 	}
 	defer db.Close()
 
-	userID := exist(d.Username)
+	userID := exists(d.Username)
 	if userID == -1 {
 		return errors.New("User does not exist")
 	}
 	d.ID = userID
-	updateStatement := `update "userdata" set "name"=$1, "surename"=$2, "description"=$3 where "userid"=$4`
-	_, err = db.Exec(updateStatement, d.Name, d.Username, d.Description, d.ID)
+	updateStatement := `update "userdata" set "name"=$1, "surname"=$2, "description"=$3 where "userid"=$4`
+	_, err = db.Exec(updateStatement, d.Name, d.Surname, d.Description, d.ID)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
