@@ -113,7 +113,7 @@ func AddUser(d Userdata) int {
 }
 
 // deleteUser удаляет существующего пользователя
-func deleteUser(id int) error {
+func DeleteUser(id int) error {
 	db, err := openConnection()
 	if err != nil {
 		return err
