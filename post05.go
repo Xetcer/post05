@@ -28,7 +28,15 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// Connection details
+/*
+This block of global variables holds the connection details
+to the Postgres server
+Hostname: is the IP or the hostname of the server
+Port: is the TCP port the DB server listens to
+Username: is the username of the database user
+Password: is the password of the database user
+Database: is the name of the Database in PostgreSQL
+*/
 var (
 	Hostname = ""
 	Port     = 2345
@@ -37,8 +45,9 @@ var (
 	Database = ""
 )
 
-// Userdata is for holding full user data
-// Userdata table + Username
+// Структура Userdata предназначена для хранения полных данных
+// о пользователе из таблицы Userdata и имени пользователя
+// из таблицы Users
 type Userdata struct {
 	ID          int
 	Username    string
@@ -47,6 +56,8 @@ type Userdata struct {
 	Description string
 }
 
+// openConnection() предназначена для открытия соединения
+// с Postgres, чтобы его могли использовать другие функции пакета
 func openConnection() (*sql.DB, error) {
 	// connection string
 	conn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
@@ -60,8 +71,8 @@ func openConnection() (*sql.DB, error) {
 	return db, nil
 }
 
-// The function returns the User ID of the username
-// -1 if the user does not exist
+// existsФункция возвращает ID пользователя username
+// -1, если пользователя не существует
 func exists(username string) int {
 	username = strings.ToLower(username)
 
@@ -89,9 +100,10 @@ func exists(username string) int {
 	return userID
 }
 
-// AddUser adds a new user to the database
-// Returns new User ID
-// -1 if there was an error
+// AddUser добавляет нового пользователя в базу данных
+//
+// Возвращает новый ID пользователя
+// -1, если произошла ошибка
 func AddUser(d Userdata) int {
 	d.Username = strings.ToLower(d.Username)
 
@@ -131,7 +143,10 @@ func AddUser(d Userdata) int {
 	return userID
 }
 
-// DeleteUser deletes an existing user
+/*
+DeleteUser удаляет существующего пользователя. Для этого требуется
+идентификатор пользователя, которого необходимо удалить.
+*/
 func DeleteUser(id int) error {
 	db, err := openConnection()
 	if err != nil {
@@ -173,7 +188,8 @@ func DeleteUser(id int) error {
 	return nil
 }
 
-// ListUsers lists all users in the database
+// ListUsers выводит список всех пользователей в базе данных
+// и возвращает срез Userdata.
 func ListUsers() ([]Userdata, error) {
 	Data := []Userdata{}
 	db, err := openConnection()
@@ -206,7 +222,10 @@ func ListUsers() ([]Userdata, error) {
 	return Data, nil
 }
 
-// UpdateUser is for updating an existing user
+// UpdateUser предназначена для обновления существующего пользователя,
+// заданного структурой Userdata.
+// Идентификатор обновляемого пользователя
+// находится внутри функции.
 func UpdateUser(d Userdata) error {
 	db, err := openConnection()
 	if err != nil {
